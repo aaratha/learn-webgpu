@@ -36,6 +36,8 @@ private:
 	WGPUDevice device;
 	WGPUQueue queue;
 	WGPUSurface surface;
+    WGPUTextureView GetNextSurfaceTextureView();
+
 };
 
 int main() {
@@ -112,7 +114,6 @@ bool Application::Initialize() {
 	std::cout << "Got device: " << device << std::endl;
 
 	// We no longer need to access the adapter
-	wgpuAdapterRelease(adapter);
 
 	// Device error callback
 	auto onDeviceError = [](WGPUErrorType type, char const* message, void* /* pUserData */) {
@@ -123,12 +124,36 @@ bool Application::Initialize() {
 	wgpuDeviceSetUncapturedErrorCallback(device, onDeviceError, nullptr /* pUserData */);
 
 	queue = wgpuDeviceGetQueue(device);
+
+    WGPUSurfaceConfiguration config = {};
+    config.nextInChain = nullptr;
+
+    // Configuration of the textures created for the underlying swap chain
+    config.width = 640;
+    config.height = 480;
+
+    WGPUTextureFormat surfaceFormat = wgpuSurfaceGetPreferredFormat(surface, adapter);
+	wgpuAdapterRelease(adapter);
+    config.format = surfaceFormat;
+    // And we do not need any particular view format:
+    config.viewFormatCount = 0;
+    config.viewFormats = nullptr;
+
+    config.usage = WGPUTextureUsage_RenderAttachment;
+    config.device = device;
+
+    config.presentMode = WGPUPresentMode_Fifo;
+    config.alphaMode = WGPUCompositeAlphaMode_Auto;
+
+    wgpuSurfaceConfigure(surface, &config);
+
 	return true;
 }
 
 void Application::Terminate() {
 	// Move all the release/destroy/terminate calls here
 	wgpuQueueRelease(queue);
+    wgpuSurfaceUnconfigure(surface);
 	wgpuSurfaceRelease(surface);
 	wgpuDeviceRelease(device);
 	glfwDestroyWindow(window);
@@ -138,14 +163,90 @@ void Application::Terminate() {
 void Application::MainLoop() {
 	glfwPollEvents();
 
-	// Also move here the tick/poll but NOT the emscripten sleep
-#if defined(WEBGPU_BACKEND_DAWN)
-	wgpuDeviceTick(device);
-#elif defined(WEBGPU_BACKEND_WGPU)
-	wgpuDevicePoll(device, false, nullptr);
-#endif
+	// Get the next target texture view
+	WGPUTextureView targetView = GetNextSurfaceTextureView();
+	if (!targetView) return;
+
+	// Create a command encoder for the draw call
+	WGPUCommandEncoderDescriptor encoderDesc = {};
+	encoderDesc.nextInChain = nullptr;
+	encoderDesc.label = "My command encoder";
+	WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(device, &encoderDesc);
+
+	// Create the render pass that clears the screen with our color
+	WGPURenderPassDescriptor renderPassDesc = {};
+	renderPassDesc.nextInChain = nullptr;
+
+	// The attachment part of the render pass descriptor describes the target texture of the pass
+	WGPURenderPassColorAttachment renderPassColorAttachment = {};
+	renderPassColorAttachment.view = targetView;
+	renderPassColorAttachment.resolveTarget = nullptr;
+	renderPassColorAttachment.loadOp = WGPULoadOp_Clear;
+	renderPassColorAttachment.storeOp = WGPUStoreOp_Store;
+	renderPassColorAttachment.clearValue = WGPUColor{ 0.9, 0.1, 0.2, 1.0 };
+    #ifndef WEBGPU_BACKEND_WGPU
+        renderPassColorAttachment.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
+    #endif // NOT WEBGPU_BACKEND_WGPU
+
+	renderPassDesc.colorAttachmentCount = 1;
+	renderPassDesc.colorAttachments = &renderPassColorAttachment;
+	renderPassDesc.depthStencilAttachment = nullptr;
+	renderPassDesc.timestampWrites = nullptr;
+
+	// Create the render pass and end it immediately (we only clear the screen but do not draw anything)
+	WGPURenderPassEncoder renderPass = wgpuCommandEncoderBeginRenderPass(encoder, &renderPassDesc);
+	wgpuRenderPassEncoderEnd(renderPass);
+	wgpuRenderPassEncoderRelease(renderPass);
+
+	// Finally encode and submit the render pass
+	WGPUCommandBufferDescriptor cmdBufferDescriptor = {};
+	cmdBufferDescriptor.nextInChain = nullptr;
+	cmdBufferDescriptor.label = "Command buffer";
+	WGPUCommandBuffer command = wgpuCommandEncoderFinish(encoder, &cmdBufferDescriptor);
+	wgpuCommandEncoderRelease(encoder);
+
+	std::cout << "Submitting command..." << std::endl;
+	wgpuQueueSubmit(queue, 1, &command);
+	wgpuCommandBufferRelease(command);
+	std::cout << "Command submitted." << std::endl;
+
+	// At the end of the frame
+	wgpuTextureViewRelease(targetView);
+    #ifndef __EMSCRIPTEN__
+        wgpuSurfacePresent(surface);
+    #endif
+
+    #if defined(WEBGPU_BACKEND_DAWN)
+        wgpuDeviceTick(device);
+    #elif defined(WEBGPU_BACKEND_WGPU)
+        wgpuDevicePoll(device, false, nullptr);
+    #endif
 }
 
 bool Application::IsRunning() {
 	return !glfwWindowShouldClose(window);
+}
+
+WGPUTextureView Application::GetNextSurfaceTextureView() {
+
+    WGPUSurfaceTexture surfaceTexture;
+    wgpuSurfaceGetCurrentTexture(surface, &surfaceTexture);
+
+    if (surfaceTexture.status != WGPUSurfaceGetCurrentTextureStatus_Success) {
+        return nullptr;
+    }
+
+    WGPUTextureViewDescriptor viewDescriptor;
+    viewDescriptor.nextInChain = nullptr;
+    viewDescriptor.label = "Surface texture view";
+    viewDescriptor.format = wgpuTextureGetFormat(surfaceTexture.texture);
+    viewDescriptor.dimension = WGPUTextureViewDimension_2D;
+    viewDescriptor.baseMipLevel = 0;
+    viewDescriptor.mipLevelCount = 1;
+    viewDescriptor.baseArrayLayer = 0;
+    viewDescriptor.arrayLayerCount = 1;
+    viewDescriptor.aspect = WGPUTextureAspect_All;
+    WGPUTextureView targetView = wgpuTextureCreateView(surfaceTexture.texture, &viewDescriptor);
+
+    return targetView;
 }

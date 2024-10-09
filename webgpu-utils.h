@@ -55,3 +55,4 @@ void inspectAdapter(WGPUAdapter adapter);
  * Display information about a device
  */
 void inspectDevice(WGPUDevice device);
+

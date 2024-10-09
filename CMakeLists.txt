@@ -5,7 +5,13 @@ project(
     LANGUAGES CXX C # programming languages used by the project
 )
 
-add_executable(App main.cpp)
+set(SOURCES
+    main.cpp
+    webgpu-utils.cpp  # Add this line to include the implementation file
+)
+
+# Create the executable
+add_executable(App ${SOURCES})
 
 if (NOT EMSCRIPTEN)
 else()
