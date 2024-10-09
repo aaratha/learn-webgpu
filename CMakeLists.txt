@@ -15,7 +15,8 @@ else()
 endif()
 
 # Add the 'webgpu' target as a dependency of our App
-target_link_libraries(App PRIVATE webgpu glfw)
+target_link_libraries(App PRIVATE glfw webgpu glfw3webgpu)
+
 
 set_target_properties(App PROPERTIES
     CXX_STANDARD 17
@@ -39,6 +40,7 @@ endif()
 
 # Include webgpu directory, to define the 'webgpu' target
 add_subdirectory(webgpu)
+add_subdirectory(glfw3webgpu)
 
 # The application's binary must find wgpu.dll or libwgpu.so at runtime,
 # so we automatically copy it (it's called WGPU_RUNTIME_LIB in general)
