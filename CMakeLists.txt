@@ -1,62 +1,14 @@
-cmake_minimum_required(VERSION 3.0...3.25)
-project(
-    LearnWebGPU # name of the project, which will also be the name of the visual studio solution if you use it
-    VERSION 0.1.0 # any version number
-    LANGUAGES CXX C # programming languages used by the project
-)
+cmake_minimum_required(VERSION 3.13) # CMake version check
+project(app)                         # Create project "app"
+set(CMAKE_CXX_STANDARD 20)           # Enable C++20 standard
 
-set(SOURCES
-    main.cpp
-    webgpu-utils.cpp  # Add this line to include the implementation file
-)
+add_executable(app "main.cpp")
 
-# Create the executable
-add_executable(App ${SOURCES})
-
-if (NOT EMSCRIPTEN)
+if(EMSCRIPTEN)
+  set_target_properties(app PROPERTIES SUFFIX ".html")
+  target_link_options(app PRIVATE "-sUSE_WEBGPU=1" "-sUSE_GLFW=3")
 else()
-    # Emscripten has built-in support for GLFW but requires the `-sUSE_GLFW=3` link option:
-    add_library(glfw INTERFACE)
-    target_link_options(glfw INTERFACE -sUSE_GLFW=3)
-endif()
-
-# Add the 'webgpu' target as a dependency of our App
-target_link_libraries(App PRIVATE glfw webgpu glfw3webgpu)
-
-
-set_target_properties(App PROPERTIES
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-    CXX_EXTENSIONS OFF
-    COMPILE_WARNING_AS_ERROR ON
-)
-
-if (MSVC)
-    target_compile_options(App PRIVATE /W4)
-else()
-    target_compile_options(App PRIVATE -Wall -Wextra -pedantic)
-endif()
-
-if (XCODE)
-    set_target_properties(App PROPERTIES
-        XCODE_GENERATE_SCHEME ON
-        XCODE_SCHEME_ENABLE_GPU_FRAME_CAPTURE_MODE "Metal"
-    )
-endif()
-
-# Include webgpu directory, to define the 'webgpu' target
-add_subdirectory(webgpu)
-add_subdirectory(glfw3webgpu)
-
-# The application's binary must find wgpu.dll or libwgpu.so at runtime,
-# so we automatically copy it (it's called WGPU_RUNTIME_LIB in general)
-# next to the binary.
-target_copy_webgpu_binaries(App)
-
-# Options that are specific to Emscripten
-if (EMSCRIPTEN)
-    # Generate a full web page rather than a simple WebAssembly module
-set_target_properties(App PROPERTIES SUFFIX ".html")
-# Enable the use of emscripten_sleep()
-target_link_options(App PRIVATE -sASYNCIFY)
+  set(DAWN_FETCH_DEPENDENCIES ON)
+  add_subdirectory("dawn" EXCLUDE_FROM_ALL)
+  target_link_libraries(app PRIVATE dawn::webgpu_dawn glfw webgpu_glfw)
 endif()
