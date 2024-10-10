@@ -243,28 +243,66 @@ private:
         pipeline = device.CreateRenderPipeline(&pipelineDesc);
     }
 
-    void CreateVertexBuffer() {
-        std::array<Vertex, 24> vertices = {
-            // Front face
-            Vertex{{-1, -1,  1}, {1, 0, 0}},
-            Vertex{{ 1, -1,  1}, {1, 0, 0}},
-            Vertex{{ 1,  1,  1}, {1, 0, 0}},
-            Vertex{{-1,  1,  1}, {1, 0, 0}},
-            // Back face
-            Vertex{{-1, -1, -1}, {0, 1, 0}},
-            Vertex{{-1,  1, -1}, {0, 1, 0}},
-            Vertex{{ 1,  1, -1}, {0, 1, 0}},
-            Vertex{{ 1, -1, -1}, {0, 1, 0}},
-            // Other faces...
-        };
+		void CreateVertexBuffer() {
+    std::array<Vertex, 36> vertices = {
 
-        wgpu::BufferDescriptor bufferDesc = {};
-        bufferDesc.size = sizeof(vertices);
-        bufferDesc.usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst;
+		// front
+				Vertex{{-1, -1,  1}, {1, 0, 0}}, // Bottom-left
+        Vertex{{ 1, -1,  1}, {1, 0, 0}}, // Bottom-right
+        Vertex{{ 1,  1,  1}, {1, 0, 0}}, // Top-right
+        Vertex{{ 1,  1,  1}, {1, 0, 0}}, // Top-right
+        Vertex{{-1,  1,  1}, {1, 0, 0}}, // Top-left
+        Vertex{{-1, -1,  1}, {1, 0, 0}}, // Bottom-left
 
-        vertexBuffer = device.CreateBuffer(&bufferDesc);
-        queue.WriteBuffer(vertexBuffer, 0, vertices.data(), bufferDesc.size);
-    }
+        // Back face
+        Vertex{{-1, -1, -1}, {0, 1, 0}}, // Bottom-left
+        Vertex{{-1,  1, -1}, {0, 1, 0}}, // Top-left
+        Vertex{{ 1,  1, -1}, {0, 1, 0}}, // Top-right
+        Vertex{{ 1,  1, -1}, {0, 1, 0}}, // Top-right
+        Vertex{{ 1, -1, -1}, {0, 1, 0}}, // Bottom-right
+        Vertex{{-1, -1, -1}, {0, 1, 0}}, // Bottom-left
+
+        // Left face
+        Vertex{{-1, -1, -1}, {0, 0, 1}}, // Bottom-left
+        Vertex{{-1, -1,  1}, {0, 0, 1}}, // Bottom-right
+        Vertex{{-1,  1,  1}, {0, 0, 1}}, // Top-right
+        Vertex{{-1,  1,  1}, {0, 0, 1}}, // Top-right
+        Vertex{{-1,  1, -1}, {0, 0, 1}}, // Top-left
+        Vertex{{-1, -1, -1}, {0, 0, 1}}, // Bottom-left
+
+        // Right face
+        Vertex{{ 1, -1, -1}, {1, 1, 0}}, // Bottom-left
+        Vertex{{ 1,  1, -1}, {1, 1, 0}}, // Top-left
+        Vertex{{ 1,  1,  1}, {1, 1, 0}}, // Top-right
+        Vertex{{ 1,  1,  1}, {1, 1, 0}}, // Top-right
+        Vertex{{ 1, -1,  1}, {1, 1, 0}}, // Bottom-right
+        Vertex{{ 1, -1, -1}, {1, 1, 0}}, // Bottom-left
+
+        // Top face
+        Vertex{{-1,  1, -1}, {0, 1, 1}}, // Bottom-left
+        Vertex{{-1,  1,  1}, {0, 1, 1}}, // Bottom-right
+        Vertex{{ 1,  1,  1}, {0, 1, 1}}, // Top-right
+        Vertex{{ 1,  1,  1}, {0, 1, 1}}, // Top-right
+        Vertex{{ 1,  1, -1}, {0, 1, 1}}, // Top-left
+        Vertex{{-1,  1, -1}, {0, 1, 1}}, // Bottom-left
+
+        // Bottom face
+        Vertex{{-1, -1, -1}, {1, 0, 1}}, // Bottom-left
+        Vertex{{ 1, -1, -1}, {1, 0, 1}}, // Bottom-right
+        Vertex{{ 1, -1,  1}, {1, 0, 1}}, // Top-right
+        Vertex{{ 1, -1,  1}, {1, 0, 1}}, // Top-right
+        Vertex{{-1, -1,  1}, {1, 0, 1}}, // Top-left
+        Vertex{{-1, -1, -1}, {1, 0, 1}}, // Bottom-left
+		};
+
+    wgpu::BufferDescriptor bufferDesc = {};
+    bufferDesc.size = sizeof(vertices);
+    bufferDesc.usage = wgpu::BufferUsage::Vertex | wgpu::BufferUsage::CopyDst;
+
+    vertexBuffer = device.CreateBuffer(&bufferDesc);
+    queue.WriteBuffer(vertexBuffer, 0, vertices.data(), bufferDesc.size);
+}
+
 
     void CreateUniformBuffer() {
         wgpu::BufferDescriptor bufferDesc = {};
@@ -291,11 +329,12 @@ private:
     void Update() {
         rotation += 0.01f;
 
-        glm::mat4 model = glm::rotate(glm::mat4(1.0f), rotation, glm::vec3(1.0f, 1.0f, 0.0f));
-        glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.0f, -5.0f),
-                                   glm::vec3(0.0f),
-                                   glm::vec3(0.0f, 1.0f, 0.0f));
-        glm::mat4 proj = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
+				using namespace glm;
+        mat4 model = rotate(mat4(1.0f), rotation, glm::vec3(1.0f, 1.0f, 0.0f));
+        mat4 view = lookAt(vec3(0.0f, 0.0f, -5.0f),
+                                   vec3(0.0f),
+                                   vec3(0.0f, 1.0f, 0.0f));
+        mat4 proj = perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
 
         Uniforms uniforms = {
             .modelViewProj = proj * view * model
@@ -327,7 +366,7 @@ private:
         pass.SetPipeline(pipeline);
         pass.SetBindGroup(0, bindGroup);
         pass.SetVertexBuffer(0, vertexBuffer);
-        pass.Draw(24, 1, 0, 0);
+        pass.Draw(36, 1, 0, 0);
 
         pass.End();
         wgpu::CommandBuffer commands = encoder.Finish();
